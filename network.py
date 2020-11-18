@@ -1,7 +1,7 @@
 import numpy as np
 import pickle
 import sys
-from time import *
+import time
 from conv_layer import ConvolutionLayer
 from fully_connected_layer import FullyConnectedLayer
 from maxpooling_layer import MaxPoolingLayer
@@ -30,20 +30,23 @@ class Net:
                           name='conv1'))
         self.layers.append(ReLu())
         self.layers.append(MaxPoolingLayer(width=2, height=2, stride=2, name='maxpool2'))
+        
         self.layers.append(
             ConvolutionLayer(inputs_channel=6, num_filters=16, width=5, height=5, padding=0, stride=1, learning_rate=lr,
                           name='conv3'))
         self.layers.append(ReLu())
         self.layers.append(MaxPoolingLayer(width=2, height=2, stride=2, name='maxpool4'))
+        
         self.layers.append(
-            ConvolutionLayer(inputs_channel=16, num_filters=120, width=5, height=5, padding=0, stride=1, learning_rate=lr,
-                          name='conv5'))
+             ConvolutionLayer(inputs_channel=16, num_filters=120, width=5, height=5, padding=0, stride=1, learning_rate=lr,
+                           name='conv5'))
+    
         self.layers.append(ReLu())
         self.layers.append(Flatten())
-        self.layers.append(FullyConnectedLayer(num_inputs=120, num_outputs=84, learning_rate=lr, name='fc6'))
+        self.layers.append(FullyConnectedLayer(num_inputs=120, num_outputs=60, learning_rate=lr, name='fc6'))
         self.layers.append(ReLu())
         self.layers.append(FullyConnectedLayer
-                           (num_inputs=84, num_outputs=10, learning_rate=lr, name='fc7'))
+                           (num_inputs=60, num_outputs=2, learning_rate=lr, name='fc7'))
         self.layers.append(Softmax())
         self.lay_num = len(self.layers)
 
@@ -60,10 +63,12 @@ class Net:
                     label = training_label[batch_index:training_label.shape[0]]
                 loss = 0
                 acc = 0
-                start_time = time()
-                for b in range(batch_size):
+                start_time = time.time()
+                
+                for b in range(len(data)):
                     x = data[b]
                     y = label[b]
+                   # print(y)
                     # forward pass
                     for l in range(self.lay_num):
                         output = self.layers[l].forward(x)
@@ -78,7 +83,7 @@ class Net:
                         dout = self.layers[l].backward(dy)
                         dy = dout
                 # time
-                end_time = time()
+                end_time = time.time()
                 batch_time = end_time - start_time
                 remain_time = (training_data.shape[0] * epoch - batch_index - training_data.shape[
                     0] * e) / batch_size * batch_time
@@ -119,6 +124,7 @@ class Net:
                 sys.stdout.flush()
             x = data[i]
             y = label[i]
+            #print(y)
             for l in range(self.lay_num):
                 output = self.layers[l].forward(x)
                 x = output

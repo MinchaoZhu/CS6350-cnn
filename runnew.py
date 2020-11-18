@@ -20,8 +20,8 @@ import cv2
 from PIL import Image
 import random
 
-test_dir = "./test_dataset/test_set"
-train_dir = "./test_dataset/training_set"
+test_dir = "./dataset/test_set"
+train_dir = "./dataset/training_set"
 
 train_dir_cats = train_dir + "/cats"
 train_dir_dogs = train_dir + "/dogs"
@@ -85,26 +85,61 @@ def read_testing_data(test_data, test_data_label, dir, label):
         test_data_label.append((label))
 
 #read gray images into train_data and train_data_label
-read_training_data(train_data, train_data_label, train_dir_cats, (0,1,0,0,0,0,0,0,0,0))
-read_training_data(train_data, train_data_label, train_dir_dogs, (1,0,0,0,0,0,0,0,0,0))
+read_training_data(train_data, train_data_label, train_dir_cats, [0,1])
+#train_data =train_data[0:250]
+#train_data_label =train_data_label[0:250]
+read_training_data(train_data, train_data_label, train_dir_dogs, [1,0])
+#train_data =train_data[0:500]
+#train_data_label =train_data_label[0:500]
+for i in range(0,len(train_data)//2,2):
+               tmp=train_data[i]
+               train_data[i] =train_data[len(train_data)-1-i]
+               train_data[len(train_data)-1-i] =tmp
+               #print(train_data_label[i])
+               tlabel = train_data_label[i]
+               train_data_label[i] = train_data_label[len(train_data)-1-i]
+               train_data_label[len(train_data)-1-i] =  tlabel
+               #print(train_data_label[i])
+               
+
 
 #read gray images into test_data and test_data_label
-read_testing_data(test_data, test_data_label, test_dir_cats, (0,1,0,0,0,0,0,0,0,0))
-read_testing_data(test_data, test_data_label, test_dir_dogs, (1,0,0,0,0,0,0,0,0,0))
+read_testing_data(test_data, test_data_label, test_dir_cats, [0,1])
+#test_data =test_data[0:100]
+#test_data_label =test_data_label[0:100]
+read_testing_data(test_data, test_data_label, test_dir_dogs, [1,0])
+for i in range(0,len(test_data)//2,3):
+               tmp = test_data[i]
+               test_data[i] =test_data[len(test_data)-1-i]
+               test_data[len(test_data)-1-i] =tmp
+               tlabel = test_data_label[i]
+               test_data_label[i] = test_data_label[len(test_data)-1-i]
+               test_data_label[len(test_data)-1-i] =  tlabel
+               i=i+1
+#test_data =test_data[0:200]
+#test_data_label =test_data_label[0:200]
+#train_data =train_data[6000:6010]
+#train_data_label =train_data_label[6000:6010]
+#test_data =test_data[0:10]
+#test_data_label =test_data_label[0:10]
 train_data = numpy.array(train_data)
+
 test_data = numpy.array(test_data)
+
 train_data_label = numpy.array(train_data_label)
+
 test_data_label = numpy.array(test_data_label)
+
 
 print(train_data.shape, train_data_label.shape)
 print(test_data.shape, test_data_label.shape)
 LeNet = Net()
 
 print('Training Lenet......')
-LeNet.train(training_data=train_data,training_label=train_data_label,batch_size=5,epoch=1,weights_file="pretrained_weights.pkl")
+LeNet.train(training_data=train_data,training_label=train_data_label,batch_size=179,epoch=1,weights_file="pretrained_weights.pkl")
 
 print('Testing Lenet......')
-LeNet.test(data=test_data,label=test_data_label,test_size=25)
+LeNet.test(data=test_data,label=test_data_label,test_size=1000)
 
 print('Testing with pretrained weights......')
-LeNet.test_with_pretrained_weights(test_data, test_data_label, 25, 'pretrained_weights.pkl')
+LeNet.test_with_pretrained_weights(test_data, test_data_label, 1000, 'pretrained_weights.pkl')
