@@ -13,6 +13,7 @@ class ConvolutionLayer:
         learning_rate:  学习率
         name:           卷积层名字
         """
+        #
         self.num_filters = num_filters
         self.channel = inputs_channel
         self.width = width
