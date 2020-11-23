@@ -1,14 +1,52 @@
-# CS6350-cnn
+## Project Description
 
-Its final project of CS6350, UTD.
+This is the final project for class Big Data Management and Analytics. Contributors include Minchao Zhu, Mo Han and Yibo Cheng. The project aims to implement a convolution neutral network without using pre-built library to do image classification.
 
-It's an image classification project based on CNN.
 
-ToDo:
 
-1. 稍微改改源代码，取少量数据，在自己电脑上跑跑，看看有没有结果
-2. 挪到AWS上跑跑，看能不能成功，直到调试成功
-3. 按自己的逻辑合理改写代码，再重复一下1，2过程检验是否成功
-4. 加大数据AWS跑
-5. 加点其他layer，比如降低 overfitting的函数等等，优化结果
-6. 为了写paper，做几个参数变量，研究对结果的影响， 参数如：（1）多层叠加， Cov + ReUl +Maxpooling 加1、2、3遍，或者他们的不同排列组合（2）with or with out normalization function or drop function。。。
+## Project Outline
+
+The project mainly has four steps to take and run
+
+- read image data and preprocess images
+
+- create network for training
+
+- fit testing data
+
+- analyze results, including accuracy, parameter effects
+
+  
+
+## Project Resource
+
+Input dataset's structure is presented below
+
+- dataset
+  - training
+    - cats (~4000 images)
+    - dogs (~4000 images)
+  - testing
+    - cats (~1000 images)
+    - dogs (~1000 images)
+
+Dataset is downloaded from Kaggle website and link is presented here as well for reference.
+
+```
+https://www.kaggle.com/chetankv/dogs-cats-images
+```
+
+
+
+Submission folder's structure is also presented below
+
+- project.ipynb
+- dataset
+- readme.md
+- report.pdf
+
+## How to Run
+
+In order to run the project successfully in local environment, there are few extensions that are required to download, including tensor flow as it is used for image process, and necessary python extension.
+
+Simply just open the python notebook and click run. The project will carry out the tasks including reading images, create network, train and fit model and present results. Please do not change the structure of project as program will read directory path for dataset and images.
