@@ -71,17 +71,32 @@ class ConvolutionLayer:
             self.lr = learning_rate
 
     
-    def zero_padding(self, inputs):
+    def paddingInclusion(self, inputs):
         # get input image's shape and calculate result image shape including padding size
-        w, h = inputs.shape[0], inputs.shape[1]
+        w = inputs.shape[0]
+        h = inputs.shape[1]
         # new shape of matrix after considering padding
         new_w = 2 * self.padding + w
         new_h = 2 * self.padding + h
         out = np.zeros((new_w, new_h))
         # fill those zero spots by input values and rest will be left as it is
-        if new_w > 0 and new_h > 0: 
-            out[self.padding:w+self.padding, self.padding:h+self.padding] = inputs
+        for i in range(new_w):
+            for j in range(new_h):
+                if i >= self.padding and i < self.padding + w and j >= self.padding and j < self.padding + h:
+                    out[i][j] = inputs[i-self.padding][j-self.padding]
         return out
+
+    def sumResultOfMatrix(self, changedMatrix):
+        f = changedMatrix.shape[0]
+        w = changedMatrix.shape[1]
+        h = changedMatrix.shape[2]
+        result = 0
+        for i in range(f):
+            for j in range(w):
+                for k in range(h):
+                    result += changedMatrix[i][j][k]
+        return result
+
 
     def calculateForwardMatrix(self, new_width, new_height):
         # corner check
@@ -90,8 +105,9 @@ class ConvolutionLayer:
             for f in range(self.num_filters):
                 for w in range(new_width):
                     for h in range(new_height):
+                        changedMatrix = self.inputs[:,w:w+self.width,h:h+self.height]*self.weights[f,:,:,:]
                         # sum up result to form forward matrix
-                        forward_matrix[f,w,h]=np.sum(self.inputs[:,w:w+self.width,h:h+self.height]*self.weights[f,:,:,:])+self.bias[f]
+                        forward_matrix[f,w,h]= self.sumResultOfMatrix(changedMatrix)+self.bias[f]
             return forward_matrix
         else:
             print("either width or height is invalid")
@@ -100,36 +116,45 @@ class ConvolutionLayer:
     def forward(self, inputs):
         # get input shape, height, width and channel
         channel = inputs.shape[0]
-        width = inputs.shape[1]+2*self.padding
-        height = inputs.shape[2]+2*self.padding
-        self.inputs = np.zeros((channel, width, height))
-        for ch in range(inputs.shape[0]):
+        padding = 2 * self.padding
+        stride = self.stride
+        process_width = padding + inputs.shape[1]
+        process_height = padding + inputs.shape[2]
+        self.inputs = np.zeros((channel, process_width, process_height))
+        for ch in range(channel):
             # process padding
-            self.inputs[ch] = self.zero_padding(inputs[ch])
-        new_width = (width - self.width)//self.stride + 1
-        new_height = (height - self.height)//self.stride + 1
+            self.inputs[ch] = self.paddingInclusion(inputs[ch])
+        new_width = (process_width - self.width)//stride + 1
+        new_height = (process_height - self.height)//stride + 1
         return self.calculateForwardMatrix(new_width, new_height)
 
     def backward(self, dy):
-
-        dx = np.zeros(self.inputs.shape)
-        dw = np.zeros(self.weights.shape)
-        db = np.zeros(self.bias.shape)
+        inputs = self.inputs
+        weights = self.weights
+        bias = self.bias
+        src = np.zeros((inputs.shape[0], inputs.shape[1], inputs.shape[2]))
+        wei = np.zeros((weights.shape[0], weights.shape[1], weights.shape[2]))
+        bi = np.zeros((bias.shape[0], bias.shape[1], bias.shape[2]))
 
         fil, width, height = dy.shape
         if fil > 0 and width > 0 and height > 0:
             for f in range(fil):
                 for w in range(width):
                     for h in range(height):
-                        dw[f]+=dy[f,w,h]*self.inputs[:,w:w+self.width,h:h+self.height]
-                        dx[:,w:w+self.width,h:h+self.height]+=dy[f,w,h]*self.weights[f,:,:,:]
+                        wei[f]+=dy[f,w,h]*self.inputs[:,w:w+self.width,h:h+self.height]
+                        src[:,w:w+self.width,h:h+self.height]+=dy[f,w,h]*self.weights[f,:,:,:]
         else:
             return
 
         for f in range(fil):
-            db[f] = np.sum(dy[f, :, :])
+            sum = 0;
+            target_matrix = dy[f]
+            for i in range (target_matrix.shape[0]):
+                for j in range (target_matrix.shape[1]):
+                    sum += target_matrix[i][j]
+            bi[f] = sum
 
-        self.weights -= self.lr * dw
-        self.bias -= self.lr * db
-        return dx
+        self.weights -= self.lr * wei
+        self.bias -= self.lr * bi
+        return src
         
