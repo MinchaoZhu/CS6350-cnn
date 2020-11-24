@@ -1,13 +1,24 @@
+
 import numpy as np
 
 class ConvolutionLayer:
   # A Convolution layer
 
+    # generate random matrix
+    def generateRandomMatrix(self): 
+        rand = self.channel * self.width * self.height;
+        matrix = np.zeros((self.channel, self.width, self.height))
+        for i in range (self.channel):
+            for j in range (self.width):
+                for k in range (self.height):
+                    matrix[i][j][k] = np.random.normal(loc = 0, scale = np.sqrt(1. / rand))
+        return matrix
+
     # create filter matrix
     def createFilterMatrix(self):
         for i in range(self.num_filters):
             # initialize filter matrix with random
-            self.weights[i] = np.random.normal(loc=0, scale=np.sqrt(1./(self.channel*self.width*self.height)), size=(self.channel, self.width, self.height))
+            self.weights[i] = self.generateRandomMatrix()
         return 
 
     # initialization function to create convolutional layer instance
@@ -19,6 +30,8 @@ class ConvolutionLayer:
              return
         else:
             self.num_filters = num_filters
+            # bias matrix is set to all zero initially
+            self.bias = np.zeros((self.num_filters,1))
         # number of image channels. In the project, all image channel is decided to be 1 for gray image
         if inputs_channel <=0: 
              print("invalid channel number is provided.")
@@ -37,6 +50,8 @@ class ConvolutionLayer:
              return
         else:
             self.height = height
+            # create random convolutional matrix
+            self.weights = np.zeros((self.num_filters, self.channel, self.width, self.height))
         # step size of convolutional matrix's sliding step
         if stride <=0: 
              print("Value of stride needs to be greater than 0 to be meaningful.")
@@ -50,14 +65,99 @@ class ConvolutionLayer:
         else:
             self.padding = padding
         # learning rate for gradient descent study
-        self.lr = learning_rate
+        if learning_rate  < 0: 
+            print("Please provide a positive learning rate")
+        else:
+            self.lr = learning_rate
 
-        # create random convolutional matrix
-        self.weights = np.zeros((self.num_filters, self.channel, self.width, self.height))
-        # bias matrix is set to all zero initially
-        self.bias = np.zeros((self.num_filters,1))
+    
+    def paddingInclusion(self, inputs):
+        # get input image's shape and calculate result image shape including padding size
+        w = inputs.shape[0]
+        h = inputs.shape[1]
+        # new shape of matrix after considering padding
+        new_w = 2 * self.padding + w
+        new_h = 2 * self.padding + h
+        out = np.zeros((new_w, new_h))
+        # fill those zero spots by input values and rest will be left as it is
+        for i in range(new_w):
+            for j in range(new_h):
+                if i >= self.padding and i < self.padding + w and j >= self.padding and j < self.padding + h:
+                    out[i][j] = inputs[i-self.padding][j-self.padding]
+        return out
+
+    def sumResultOfMatrix(self, changedMatrix):
+        f = changedMatrix.shape[0]
+        w = changedMatrix.shape[1]
+        h = changedMatrix.shape[2]
+        result = 0
+        for i in range(f):
+            for j in range(w):
+                for k in range(h):
+                    result += changedMatrix[i][j][k]
+        return result
+
+
+    def calculateForwardMatrix(self, new_width, new_height):
+        # corner check
+        if new_width > 0 and new_height > 0:
+            forward_matrix = np.zeros((self.num_filters, new_width, new_height))
+            for f in range(self.num_filters):
+                for w in range(new_width):
+                    for h in range(new_height):
+                        changedMatrix = self.inputs[:,w:w+self.width,h:h+self.height]*self.weights[f,:,:,:]
+                        # sum up result to form forward matrix
+                        forward_matrix[f,w,h]= self.sumResultOfMatrix(changedMatrix)+self.bias[f]
+            return forward_matrix
+        else:
+            print("either width or height is invalid")
+            return
+
+    def forward(self, inputs):
+        # get input shape, height, width and channel
+        channel = inputs.shape[0]
+        padding = 2 * self.padding
+        stride = self.stride
+        process_width = padding + inputs.shape[1]
+        process_height = padding + inputs.shape[2]
+        self.inputs = np.zeros((channel, process_width, process_height))
+        for ch in range(channel):
+            # process padding
+            self.inputs[ch] = self.paddingInclusion(inputs[ch])
+        new_width = (process_width - self.width)//stride + 1
+        new_height = (process_height - self.height)//stride + 1
+        return self.calculateForwardMatrix(new_width, new_height)
+
+    def backward(self, dy):
+        inputs = self.inputs
+        weights = self.weights
+        bias = self.bias
+        src = np.zeros((inputs.shape[0], inputs.shape[1], inputs.shape[2]))
+        wei = np.zeros((weights.shape[0], weights.shape[1], weights.shape[2]))
+        bi = np.zeros((bias.shape[0], bias.shape[1], bias.shape[2]))
+
+        fil, width, height = dy.shape
+        if fil > 0 and width > 0 and height > 0:
+            for f in range(fil):
+                for w in range(width):
+                    for h in range(height):
+                        wei[f]+=dy[f,w,h]*self.inputs[:,w:w+self.width,h:h+self.height]
+                        src[:,w:w+self.width,h:h+self.height]+=dy[f,w,h]*self.weights[f,:,:,:]
+        else:
+            return
+
+        for f in range(fil):
+            sum = 0;
+            target_matrix = dy[f]
+            for i in range (target_matrix.shape[0]):
+                for j in range (target_matrix.shape[1]):
+                    sum += target_matrix[i][j]
+            bi[f] = sum
+
+        self.weights -= self.lr * wei
+        self.bias -= self.lr * bi
+        return src
         
-        self.createFilterMatrix()
 
     
     def zero_padding(self, inputs, padding_size):
@@ -121,7 +221,8 @@ class ConvolutionLayer:
         self.weights -= self.lr * dw
         self.bias -= self.lr * db
         return dx
-        class ReLu:
+
+class ReLu:
     def forward(self, inputs):
         self.inputs = inputs
         relu = inputs.copy()
@@ -130,9 +231,10 @@ class ConvolutionLayer:
         return relu
 
     def backward(self, dy):
-        dx = dy.copy()
-        dx[self.inputs < 0] = 0
-        return dx
+        inputs = dy.copy()
+        inputs[self.inputs < 0] = 0
+        return inputs
+
 class MaxPoolingLayer:
     def __init__(self, width, height, stride):
         if width > 0:
@@ -154,18 +256,44 @@ class MaxPoolingLayer:
         else:
             return 0
 
+    def array_slice(self, i1, i2, j1, j2, k1, k2):
+        return self.inputs[i1, j1:j2, k1:k2]
+
+    def arr_max(self, arr):
+        result = np.max(arr[0])
+        for v in arr:
+            result = max(np.max(v), result)
+        return result
+
     def forward_out(self, c_len, new_width, new_height):
         out = 0
         if c_len >= 0 and new_width >= 0 and new_height >= 0:
             out = np.zeros((c_len, new_width, new_height))
         else:
             sys.exit("Inputs should not be negative") 
-        for c in range(c_len):
-            for w in range(new_width):
-                for h in range(new_height):
-                    #np.max get the max value
-                    out[c, w, h] = np.max(
-                        self.inputs[c, w * self.stride:w * self.stride + self.width, h * self.stride:h * self.stride + self.height])
+        c = 0
+        w = 0
+        h = 0
+        flag_c = True
+        flag_w = True
+        flag_h = True
+        while flag_c:
+            while flag_w:
+                while flag_h:
+                    new_c = c
+                    new_c_2 = c + 1
+                    new_w_1 = self.stride * w
+                    new_w_2 = new_w_1 + self.width
+                    new_h_1 = h * self.stride
+                    new_h_2 = new_h_1 + self.height
+                    result = self.array_slice(new_c, new_c_2, new_w_1, new_w_2, new_h_1, new_h_2)
+                    out[c, w, h] = self.arr_max(result)
+                    h += 1
+                    flag_h = h < new_height
+                w += 1
+                flag_w = w < new_width
+            c += 1
+            flag_c = c < c_len
         return out
 
     def forward(self, inputs):
@@ -183,14 +311,40 @@ class MaxPoolingLayer:
         else:
             sys.exit("error: output is none") 
 
+    def index_to_tuple(index, m, n):
+        x = int(index / n)
+        y = index - n * x
+        return x, y
+
     def backward_out(self, c_len, w_len, h_len, delta_y):
         dx = np.zeros(self.inputs.shape)
-        for c in range(c_len):
-            for w in range(0, w_len, self.width):
-                for h in range(0, h_len, self.height):
-                    st = np.argmax(self.inputs[c, w:w + self.width, h:h + self.height])
-                    (idx, idy) = np.unravel_index(st, (self.width, self.height))
-                    dx[c, w + idx, h + idy] = delta_y[c, w // self.width, h // self.height]
+        c = 0
+        w = 0
+        h = 0
+        flag_c = True
+        flag_w = True
+        flag_h = True
+        while flag_c:
+            while flag_w:
+                while flag_h:
+                    new_c = c
+                    new_c_2 = c + 1
+                    new_w_1 = w
+                    new_w_2 = new_w_1 + self.width
+                    new_h_1 = h
+                    new_h_2 = new_h_1 + self.height
+                    result = self.array_slice(new_c, new_c_2, new_w_1, new_w_2, new_h_1, new_h_2)
+                    x, y = self.index_to_tuple(np.argmax(result), new_w_1, new_h_1)
+                    new_w_1 += x
+                    new_h_1 += y
+                    dx[new_c, new_w_1, new_h_1] = delta_y[c, w // self.width, h // self.height]
+                    h += self.height
+                    flag_h = h < h_len
+                w += self.width
+                flag_w = w < w_len
+            c += 1
+            flag_c = c < c_len
+
         return dx
 
     def backward(self, delta_y):
@@ -199,8 +353,10 @@ class MaxPoolingLayer:
             sys.exit("Inputs should not be negative")
         result = self.backward_out(c_len, w_len, h_len, delta_y)
         return result
+
 def cross_entropy(inputs, labels):
     return -np.log(np.sum(labels.reshape(1,labels.shape[0])*inputs))
+
 
 class Flatten:
     def forward(self, i):
@@ -212,6 +368,7 @@ class Flatten:
         return y.reshape(self.c_len, self.w_len, self.h_len)
     def extract(self): 
         return
+
 class FullyConnectedLayer:
 
     def __init__(self, num_inputs, num_outputs, learning_rate):
@@ -240,6 +397,7 @@ class FullyConnectedLayer:
         self.bias -= self.lr * db
 
         return dx
+
 class Softmax:
     def forward(self, inputs):
         tmp = np.exp(inputs, dtype=np.float)
@@ -252,41 +410,22 @@ import sys
 
 
 class CNN:
-    def __init__(self):
-
-        lr = 0.01
-        self.layers = []
-        self.layers.append(ConvolutionLayer(inputs_channel=1, num_filters=6, width=5, height=5, padding=2, stride=1, learning_rate=lr))
-        self.layers.append(ReLu())
-        self.layers.append(MaxPoolingLayer(width=2, height=2, stride=2))
+    def __init__(self, _layers):
+        self.layers = _layers
+        self.lay_num = len(layers)
         
-        self.layers.append(ConvolutionLayer(inputs_channel=6, num_filters=16, width=5, height=5, padding=0, stride=1, learning_rate=lr))
-        self.layers.append(ReLu())
-        self.layers.append(MaxPoolingLayer(width=2, height=2, stride=2))
-        
-        self.layers.append(ConvolutionLayer(inputs_channel=16, num_filters=120, width=5, height=5, padding=0, stride=1, learning_rate=lr))
-    
-        self.layers.append(ReLu())
-        self.layers.append(Flatten())
-        self.layers.append(FullyConnectedLayer(num_inputs=120, num_outputs=60, learning_rate=lr))
-        self.layers.append(ReLu())
-        self.layers.append(FullyConnectedLayer(num_inputs=60, num_outputs=2, learning_rate=lr))
-        self.layers.append(Softmax())
-        self.lay_num = len(self.layers)
-
-
-    def get_data(self, trn, i, batch):
+    def get_data(self, trn_X, trn_y, i, batch):
+        flag = True
+        len_0 = trn_X.shape[0] 
         if batch > 0:
             self.b = batch
+            flag = (len_0 - batch - i > 0)
         else:
-            sys.exit("batch cannot be negative") 
-        if i + batch < trn.shape[0]:
-            data = trn[i:i + batch]
-            label = trn[i:i + batch]
-        else:
-            data = trn[i:trn.shape[0]]
-            label = trn[i:trn.shape[0]]
-        return data, label
+            sys.exit("batch cannot be negative")  
+        i2 = len_0
+        if flag:
+            i2 = i + batch
+        return trn_X[i:i2], trn_y[i:i2]
 
     def forward(self, input_x):
         for l in range(self.lay_num):
@@ -295,16 +434,23 @@ class CNN:
         return output
 
     def backward(self, output_y):
-        for l in range(self.lay_num - 1, -1, -1):
-            out = self.layers[l].backward(output_y)
-            output_y = out
+        l = lay_num
+        flag = (l >= 0)
+        out = output_y
+        while flag:
+            out = self.layers[l].backward(out)
+            l -= 1
+            flag = (l >= 0)
 
     def train(self, training_data, training_label, batch_size, epoch):
-        total_acc = 0
+        acc_sum = 0
+        X0_len = training_data.shape[0]
         for e in range(epoch):
-            for batch_index in range(0, training_data.shape[0], batch_size):
+            batch_index = 0
+            flag = (batch_index < X0_len)
+            while flag:
                 # get the data
-                data, label = self.get_data(training_data, i, batch_size) 
+                data, label = self.get_data(training_data, training_label, i, batch_size) 
                 loss = 0
                 acc = 0
 
@@ -316,17 +462,27 @@ class CNN:
                     output = self.forward(x)
 
                     loss += cross_entropy(output, y)
-                    if np.argmax(output) == np.argmax(y):
-                        acc += 1
-                        total_acc += 1
 
+                    predict_y = np.argmax(output)
+                    real_y = np.argmax(y)
+                    flag = (predict_y != real_y)
+
+                    if flag:
+                        acc += 0
+                        acc_sum += 0
+                    else:
+                        acc += 1
+                        acc_sum += 1
                     #backward
                     self.backward(y)
+                batch_index += batch_size
+                flag = (batch_index < X0_len)
+
 
                 # result
                 loss /= batch_size
                 batch_acc = float(acc) / float(batch_size)
-                training_acc = float(total_acc) / float((batch_index + batch_size) * (e + 1))
+                training_acc = float(acc_sum) / float((batch_index + batch_size) * (e + 1))
  
     def predict(self, x):
         return self.forward(x)
@@ -337,13 +493,16 @@ class CNN:
             x = data[i]
             y = label[i]
 
-            predict_y = self.predict(x)
-            if np.argmax(predict_y) == np.argmax(y):
+            predict_y = np.argmax(self.predict(x))
+            real_y = np.argmax(y)
+            if predict_y != real_y:
+                total_acc += 0
+            else:
                 total_acc += 1
-                
+
         return  float(total_acc) / float(test_size)
 
-   #!/usr/bin/env python3
+  #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Created on Tue Nov 17 15:03:57 2020
@@ -455,9 +614,25 @@ train_data_label = numpy.array(train_data_label)
 
 test_data_label = numpy.array(test_data_label)
 
+lr = 0.01
+c1 = ConvolutionLayer(1, 6, 5, 5, 2, 1, learning_rate=lr)
+r1 = ReLu()
 
+m1 = MaxPoolingLayer(2, 2, 2)
+c2 = ConvolutionLayer(6, 16, 5, 5, 0, 1, learning_rate=lr)
+r2 = ReLu()
+m2 = MaxPoolingLayer(2, 2, 2)
+c3 = ConvolutionLayer(16, 120, 5, 5, 0, 1, learning_rate=lr)
+r3 = ReLu()
+f1 = Flatten()
+fc1 = FullyConnectedLayer(120, 60, learning_rate=lr)
+r4 = ReLu()
+fc2 = FullyConnectedLayer(60, 2, learning_rate=lr)
+s1 = Softmax()
 
-cnn = CNN()
+layers = [c1, r1, m1, c2, r2, m2, c3, r3, f1, fc1, r4, fc2, s1]
+
+cnn = CNN(layers)
 
 #print('Training Lenet......')
 cnn.train(training_data=train_data,training_label=train_data_label,batch_size=20,epoch=1)
@@ -465,7 +640,3 @@ cnn.train(training_data=train_data,training_label=train_data_label,batch_size=20
 #print('Testing Lenet......')
 accuracy = cnn.test(data=test_data,label=test_data_label,test_size=200)
 print('Testing accuracy:'+str(accuracy))
-#Write result into txt
-f = open("CNN_result.txt", "w")
-f.write('Testing accuracy:'+str(accuracy*100)+'%')
-f.close()
